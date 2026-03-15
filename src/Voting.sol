@@ -38,6 +38,7 @@ contract Voting is ReentrancyGuard, Ownable {
 
     function vote(bool userVote) public nonReentrant {
         uint256 votingPower = _getVotingPower(msg.sender);
+        voters.push(msg.sender);
         currentVotes[msg.sender] = UserVote({
             vote: userVote,
             votingPower: votingPower
@@ -51,6 +52,11 @@ contract Voting is ReentrancyGuard, Ownable {
                 votingInfo.yesVotes += userVote.votingPower;
             }
         }
+
+        for (uint256 i = 0; i < voters.length; i++) {
+            staking.unstakeAllFor(voters[i]);
+        }
+
         return votingInfo.yesVotes >= votingInfo.votingPowerThreshold;
     }
 
