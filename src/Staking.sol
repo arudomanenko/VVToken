@@ -60,26 +60,6 @@ contract Staking is ReentrancyGuard, Ownable {
         SafeERC20.safeTransfer(token, msg.sender, amount);
     }
 
-    function unstakeAllFor(address user) external {
-        require(msg.sender == voting, "Only voting");
-        _unstakeAll(user);
-    }
-
-    function _unstakeAll(address user) internal {
-        StakeInfo[] storage userStakes = stakeInfos[user];
-        uint256 total;
-        for (uint256 i; i < userStakes.length; ) {
-            total += userStakes[i].stakedAmount;
-            unchecked {
-                ++i;
-            }
-        }
-        delete stakeInfos[user];
-        if (total > 0) {
-            SafeERC20.safeTransfer(token, user, total);
-        }
-    }
-
     function getStakeInfo(address userAddress) public view returns (StakeInfo[] memory) {
         return stakeInfos[userAddress];
     }
