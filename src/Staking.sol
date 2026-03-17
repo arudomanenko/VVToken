@@ -4,22 +4,19 @@ pragma solidity ^0.8.13;
 import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {VVToken} from "./VVToken.sol";
 
 contract Staking is ReentrancyGuard, Ownable {
-    VVToken public token;
-    address public voting;
-
     struct StakeInfo {
         uint256 stakedAmount;
         uint256 startTimestamp;
         uint256 endTimestamp;
     }
-
-    mapping(address => StakeInfo[]) public stakeInfos;
 
     event StakeCreated(
         address indexed user,
@@ -34,6 +31,11 @@ contract Staking is ReentrancyGuard, Ownable {
         uint256 indexed index,
         uint256 amount
     );
+
+    VVToken public token;
+    address public voting;
+
+    mapping(address => StakeInfo[]) public stakeInfos;
 
     constructor(address _tokenAddress) Ownable(msg.sender) {
         require(_tokenAddress != address(0), "Invalid token address");
@@ -62,6 +64,7 @@ contract Staking is ReentrancyGuard, Ownable {
         );
 
         uint256 newIndex = stakeInfos[msg.sender].length - 1;
+
         emit StakeCreated(
             msg.sender,
             newIndex,
@@ -85,7 +88,9 @@ contract Staking is ReentrancyGuard, Ownable {
         emit StakeUnstaked(msg.sender, stakeIndex, amount);
     }
 
-    function getStakeInfo(address userAddress) public view returns (StakeInfo[] memory) {
+    function getStakeInfo(
+        address userAddress
+    ) public view returns (StakeInfo[] memory) {
         return stakeInfos[userAddress];
     }
 }

@@ -10,6 +10,16 @@ import {Staking} from "./Staking.sol";
 import {VotingResult} from "./VotingResult.sol";
 
 contract Voting is ReentrancyGuard, Ownable {
+    struct VotingInfo {
+        bytes32 id;
+        uint256 deadline;
+        uint256 votingPowerThreshold;
+        string description;
+        uint256 yesVotes;
+        uint256 noVotes;
+        bool isOver;
+    }
+
     event VoteDebug(
         address voter,
         uint256 votingPower,
@@ -21,16 +31,6 @@ contract Voting is ReentrancyGuard, Ownable {
         uint256 noVotes,
         bool isOver
     );
-
-    struct VotingInfo {
-        bytes32 id;
-        uint256 deadline;
-        uint256 votingPowerThreshold;
-        string description;
-        uint256 yesVotes;
-        uint256 noVotes;
-        bool isOver;
-    }
 
     Staking public staking;
     VotingInfo public votingInfo;
@@ -67,6 +67,7 @@ contract Voting is ReentrancyGuard, Ownable {
         usersVote[msg.sender] = userVote;
 
         VotingInfo memory info = votingInfo;
+
         emit VoteDebug(
             msg.sender,
             vp,
@@ -90,10 +91,7 @@ contract Voting is ReentrancyGuard, Ownable {
         return votingInfo;
     }
 
-    function _applyNcheckVote(
-        bool isYesVote,
-        uint256 vp
-    ) internal {
+    function _applyNcheckVote(bool isYesVote, uint256 vp) internal {
         if (isYesVote) {
             votingInfo.yesVotes += vp;
         } else {

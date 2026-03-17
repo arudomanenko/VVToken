@@ -41,7 +41,7 @@ echo "Voting:       $VOTING_ADDR"
 echo
 
 echo "Starting watchVoteDebug.js (logging to vote_events_stake_expires.log)..."
-VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node watchVoteDebug.js >> vote_events_stake_expires.log 2>&1 &
+VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node ../watchVoteDebug.js >> vote_events_stake_expires.log 2>&1 &
 sleep 2
 echo
 
@@ -57,8 +57,8 @@ echo
 
 echo "=== 3) Stakes: V1 very short, V2 longer ==="
 NOW_TS="$(date +%s)"
-V1_END=$((NOW_TS + 5))      # 5 seconds
-V2_END=$((NOW_TS + 300))    # 5 minutes
+V1_END=$((NOW_TS + 5))      
+V2_END=$((NOW_TS + 300))    
 
 echo "Voter1 stake ends at: $V1_END (will expire before vote)"
 echo "Voter2 stake ends at: $V2_END (still active at vote)"

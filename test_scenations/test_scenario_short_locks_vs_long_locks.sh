@@ -50,7 +50,7 @@ echo "Voting:       $VOTING_ADDR"
 echo
 
 echo "Starting watchVoteDebug.js (logging to vote_events_short_locks.log)..."
-VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node watchVoteDebug.js >> vote_events_short_locks.log 2>&1 &
+VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node ../swatchVoteDebug.js >> vote_events_short_locks.log 2>&1 &
 sleep 2
 echo
 

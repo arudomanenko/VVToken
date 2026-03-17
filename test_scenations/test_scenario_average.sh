@@ -62,8 +62,8 @@ echo "Voting deployed at:       $VOTING_ADDR"
 echo
 
 echo "Starting watchVoteDebug.js (logging to vote_events.log)..."
-VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node watchVoteDebug.js >> vote_events.log 2>&1 &
-sleep 2   # wait for WebSocket connection to be established
+VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node ../watchVoteDebug.js >> vote_events.log 2>&1 &
+sleep 2
 echo
 
 echo "=== 2) Distribute VV tokens to voters ==="
