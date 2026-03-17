@@ -10,6 +10,18 @@ import {Staking} from "./Staking.sol";
 import {VotingResult} from "./VotingResult.sol";
 
 contract Voting is ReentrancyGuard, Ownable {
+    event VoteDebug(
+        address voter,
+        uint256 votingPower,
+        bytes32 id,
+        uint256 deadline,
+        uint256 votingPowerThreshold,
+        string description,
+        uint256 yesVotes,
+        uint256 noVotes,
+        bool isOver
+    );
+
     struct VotingInfo {
         bytes32 id;
         uint256 deadline;
@@ -50,42 +62,50 @@ contract Voting is ReentrancyGuard, Ownable {
         require(usersVoted[msg.sender] == false, "Already voted");
 
         usersVoted[msg.sender] = true;
-        _applyNcheckVote(msg.sender, userVote);
+        uint256 vp = _getVotingPower(msg.sender);
+        _applyNcheckVote(userVote, vp);
         usersVote[msg.sender] = userVote;
+
+        VotingInfo memory info = votingInfo;
+        emit VoteDebug(
+            msg.sender,
+            vp,
+            info.id,
+            info.deadline,
+            info.votingPowerThreshold,
+            info.description,
+            info.yesVotes,
+            info.noVotes,
+            info.isOver
+        );
     }
 
     function finalize() public nonReentrant {
         require(msg.sender == creator, "Only creator can finalize");
         require(!votingInfo.isOver, "Voting already finalized");
-
-        string memory result = "No consensus";
-        if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
-            result = "Yes";
-        } else if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
-            result = "No";
-        }
-
-        _endVoting(result);
+        _endVoting(votingInfo.yesVotes > votingInfo.noVotes ? "Yes" : "No");
     }
-
-    
 
     function getCurrentVoteInfo() public view returns (VotingInfo memory) {
         return votingInfo;
     }
 
-    function _applyNcheckVote(address voter, bool isYesVote) internal {
-        uint256 vp = _getVotingPower(voter);
+    function _applyNcheckVote(
+        bool isYesVote,
+        uint256 vp
+    ) internal {
         if (isYesVote) {
             votingInfo.yesVotes += vp;
-            if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
-                _endVoting("Yes");
-            }
         } else {
             votingInfo.noVotes += vp;
-            if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
-                _endVoting("No");
-            }
+        }
+
+        if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
+            _endVoting("Yes");
+        }
+
+        if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
+            _endVoting("No");
         }
     }
 

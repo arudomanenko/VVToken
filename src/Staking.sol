@@ -21,6 +21,20 @@ contract Staking is ReentrancyGuard, Ownable {
 
     mapping(address => StakeInfo[]) public stakeInfos;
 
+    event StakeCreated(
+        address indexed user,
+        uint256 indexed index,
+        uint256 amount,
+        uint256 startTimestamp,
+        uint256 endTimestamp
+    );
+
+    event StakeUnstaked(
+        address indexed user,
+        uint256 indexed index,
+        uint256 amount
+    );
+
     constructor(address _tokenAddress) Ownable(msg.sender) {
         require(_tokenAddress != address(0), "Invalid token address");
         token = VVToken(_tokenAddress);
@@ -46,6 +60,15 @@ contract Staking is ReentrancyGuard, Ownable {
                 endTimestamp: expiredAt
             })
         );
+
+        uint256 newIndex = stakeInfos[msg.sender].length - 1;
+        emit StakeCreated(
+            msg.sender,
+            newIndex,
+            amount,
+            block.timestamp,
+            expiredAt
+        );
     }
 
     function unstake(uint256 stakeIndex) external nonReentrant {
@@ -58,6 +81,8 @@ contract Staking is ReentrancyGuard, Ownable {
         userStakes.pop();
 
         SafeERC20.safeTransfer(token, msg.sender, amount);
+
+        emit StakeUnstaked(msg.sender, stakeIndex, amount);
     }
 
     function getStakeInfo(address userAddress) public view returns (StakeInfo[] memory) {

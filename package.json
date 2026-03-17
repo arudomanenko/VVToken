@@ -1,0 +1,27 @@
+{
+  "name": "vvtoken",
+  "version": "1.0.0",
+  "description": "**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**",
+  "main": "watchVoteDebug.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arudomanenko/VVToken.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arudomanenko/VVToken/issues"
+  },
+  "homepage": "https://github.com/arudomanenko/VVToken#readme",
+  "dependencies": {
+    "web3": "^4.16.0"
+  }
+}

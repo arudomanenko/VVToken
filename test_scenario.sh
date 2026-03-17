@@ -1,4 +1,4 @@
-.#!/usr/bin/env bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 
@@ -61,6 +61,11 @@ echo "VotingResult deployed at: $VOTING_RESULT_ADDR"
 echo "Voting deployed at:       $VOTING_ADDR"
 echo
 
+echo "Starting watchVoteDebug.js (logging to vote_events.log)..."
+VOTING_ADDR="$VOTING_ADDR" STAKING_ADDR="$STAKING_ADDR" RPC_URL="$RPC_URL" node watchVoteDebug.js >> vote_events.log 2>&1 &
+sleep 2   # wait for WebSocket connection to be established
+echo
+
 echo "=== 2) Distribute VV tokens to voters ==="
 VOTER_STAKE_AMOUNT_WEI="$(cast --to-wei 1000 ether)"
 
@@ -74,7 +79,7 @@ echo
 
 echo "=== 3) Voters approve and stake with different durations (Di in [1,4]) ==="
 NOW_TS="$(date +%s)"
-UNIT_SECONDS=$((10 * 60))
+UNIT_SECONDS=$((1))
 
 EXPIRY_V1=$((NOW_TS + 1 * UNIT_SECONDS))
 EXPIRY_V2=$((NOW_TS + 2 * UNIT_SECONDS))
@@ -118,12 +123,12 @@ cast send "$VOTING_ADDR" "vote(bool)" true \
   --private-key "$VOTER1_PK" >/dev/null
 
 echo "Voter2 (medium lock, D=2) votes YES"
-cast send "$VOTING_ADDR" "vote(bool)" true \
+cast send "$VOTING_ADDR" "vote(bool)" false \
   --rpc-url "$RPC_URL" \
   --private-key "$VOTER2_PK" >/dev/null
 
 echo "Voter3 (longest lock, D=4) votes NO"
-cast send "$VOTING_ADDR" "vote(bool)" false \
+cast send "$VOTING_ADDR" "vote(bool)" true \
   --rpc-url "$RPC_URL" \
   --private-key "$VOTER3_PK" >/dev/null
 echo
@@ -133,12 +138,36 @@ cast send "$VOTING_ADDR" "finalize()" \
   --rpc-url "$RPC_URL" \
   --private-key "$ADMIN_PK" >/dev/null
 
-INFO_RAW="$(cast call "$VOTING_ADDR" "getCurrentVoteInfo()(bytes32,uint256,uint256,string,uint256,uint256,bool)" \
+echo "Fetching VotingResult NFT outcome (tokenId 0)..."
+VOTE_NFT_RESULT="$(cast call "$VOTING_RESULT_ADDR" "getVotingResult(uint256)(string)" 0 \
+  --rpc-url "$RPC_URL")"
+echo "VotingResult NFT[0]: $VOTE_NFT_RESULT"
+echo
+
+INFO_RAW="$(cast call "$VOTING_ADDR" \
+  "getCurrentVoteInfo()(tuple(bytes32,uint256,uint256,string,uint256,uint256,bool))" \
   --rpc-url "$RPC_URL")"
 
 echo "Voting finalized."
 echo "Raw VotingInfo (id,deadline,threshold,description,yesVotes,noVotes,isOver):"
 echo "$INFO_RAW"
+
+echo
+echo "=== 6) Users unstake after successful vote ==="
+echo "Voter3 unstakes stake index 0"
+cast send "$STAKING_ADDR" "unstake(uint256)" 0 \
+  --rpc-url "$RPC_URL" \
+  --private-key "$VOTER3_PK" >/dev/null
+
+echo "Voter2 unstakes stake index 0"
+cast send "$STAKING_ADDR" "unstake(uint256)" 0 \
+  --rpc-url "$RPC_URL" \
+  --private-key "$VOTER2_PK" >/dev/null
+
+echo "Voter1 unstakes stake index 0"
+cast send "$STAKING_ADDR" "unstake(uint256)" 0 \
+  --rpc-url "$RPC_URL" \
+  --private-key "$VOTER1_PK" >/dev/null
 
 echo
 echo "Scenario complete."
