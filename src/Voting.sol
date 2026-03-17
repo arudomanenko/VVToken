@@ -5,11 +5,12 @@ import {
     ReentrancyGuard
 } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {Staking} from "./Staking.sol";
 import {VotingResult} from "./VotingResult.sol";
 
-contract Voting is ReentrancyGuard, Ownable {
+contract Voting is ReentrancyGuard, Ownable, Pausable {
     struct VotingInfo {
         bytes32 id;
         uint256 deadline;
@@ -20,21 +21,16 @@ contract Voting is ReentrancyGuard, Ownable {
         bool isOver;
     }
 
-    event VoteDebug(
-        address voter,
-        uint256 votingPower,
-        bytes32 id,
-        uint256 deadline,
-        uint256 votingPowerThreshold,
-        string description,
-        uint256 yesVotes,
-        uint256 noVotes,
-        bool isOver
-    );
+    struct VoterInfo {
+        bool hasVoted;
+        bool vote;
+    }
+
+    event Voted(address indexed voter, bool vote, uint256 votingPower);
+    event VotingFinalized(string result, uint256 yesVotes, uint256 noVotes);
 
     Staking public staking;
     VotingInfo public votingInfo;
-    address public creator;
 
     mapping(address => bool) public usersVoted;
     mapping(address => bool) public usersVote;
@@ -46,74 +42,72 @@ contract Voting is ReentrancyGuard, Ownable {
         VotingInfo memory _votingInfo,
         address _votingResultAddress,
         address _creator
-    ) Ownable(msg.sender) {
+    ) Ownable(_creator) {
         staking = Staking(_stakingAddress);
         votingInfo = _votingInfo;
         votingResult = VotingResult(_votingResultAddress);
-        creator = _creator;
     }
 
-    function vote(bool userVote) public nonReentrant {
-        require(votingInfo.isOver == false, "Voting is over");
+    function vote(bool userVote) public nonReentrant whenNotPaused {
+        require(!votingInfo.isOver, "Voting is over");
         require(
             block.timestamp < votingInfo.deadline,
             "Voting deadline passed"
         );
-        require(usersVoted[msg.sender] == false, "Already voted");
+        require(!usersVoted[msg.sender], "Already voted");
+
+        uint256 vp = _getVotingPower(msg.sender);
+        require(vp > 0, "No active voting power");
 
         usersVoted[msg.sender] = true;
-        uint256 vp = _getVotingPower(msg.sender);
-        _applyNcheckVote(userVote, vp);
         usersVote[msg.sender] = userVote;
+        _applyNcheckVote(userVote, vp);
 
-        VotingInfo memory info = votingInfo;
-
-        emit VoteDebug(
-            msg.sender,
-            vp,
-            info.id,
-            info.deadline,
-            info.votingPowerThreshold,
-            info.description,
-            info.yesVotes,
-            info.noVotes,
-            info.isOver
-        );
+        emit Voted(msg.sender, userVote, vp);
     }
 
-    function finalize() public nonReentrant {
-        require(msg.sender == creator, "Only creator can finalize");
+    function finalize() public nonReentrant onlyOwner {
         require(!votingInfo.isOver, "Voting already finalized");
+        require(block.timestamp >= votingInfo.deadline, "Deadline not reached");
         _endVoting(votingInfo.yesVotes > votingInfo.noVotes ? "Yes" : "No");
+    }
+
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     function getCurrentVoteInfo() public view returns (VotingInfo memory) {
         return votingInfo;
     }
 
+    function getVoterInfo(
+        address voter
+    ) public view returns (VoterInfo memory) {
+        return VoterInfo({hasVoted: usersVoted[voter], vote: usersVote[voter]});
+    }
+
     function _applyNcheckVote(bool isYesVote, uint256 vp) internal {
         if (isYesVote) {
             votingInfo.yesVotes += vp;
+            if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
+                _endVoting("Yes");
+            }
         } else {
             votingInfo.noVotes += vp;
-        }
-
-        if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
-            _endVoting("Yes");
-        }
-
-        if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
-            _endVoting("No");
+            if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
+                _endVoting("No");
+            }
         }
     }
 
     function _endVoting(string memory result) internal {
-        if (votingInfo.isOver) {
-            return;
-        }
-
         votingInfo.isOver = true;
-        votingResult.mintVotingResult(creator, result);
+        votingResult.mintVotingResult(owner(), result);
+        emit VotingFinalized(result, votingInfo.yesVotes, votingInfo.noVotes);
     }
 
     function _getVotingPower(address user) internal view returns (uint256) {

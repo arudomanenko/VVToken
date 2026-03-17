@@ -9,9 +9,10 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {VVToken} from "./VVToken.sol";
 
-contract Staking is ReentrancyGuard, Ownable {
+contract Staking is ReentrancyGuard, Ownable, Pausable {
     struct StakeInfo {
         uint256 stakedAmount;
         uint256 startTimestamp;
@@ -32,8 +33,10 @@ contract Staking is ReentrancyGuard, Ownable {
         uint256 amount
     );
 
+    uint256 public constant MIN_STAKE_DURATION = 1 weeks;
+    uint256 public constant MAX_STAKE_DURATION = 4 weeks;
+
     VVToken public token;
-    address public voting;
 
     mapping(address => StakeInfo[]) public stakeInfos;
 
@@ -42,17 +45,23 @@ contract Staking is ReentrancyGuard, Ownable {
         token = VVToken(_tokenAddress);
     }
 
-    function setVoting(address _voting) external onlyOwner {
-        voting = _voting;
+    function pause() external onlyOwner {
+        _pause();
     }
 
-    function stake(uint256 amount, uint256 expiredAt) external nonReentrant {
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    function stake(uint256 amount, uint256 expiredAt) external nonReentrant whenNotPaused {
         require(
             expiredAt > block.timestamp,
             "Expired at must be in the future"
         );
+        uint256 duration = expiredAt - block.timestamp;
+        require(duration >= MIN_STAKE_DURATION, "Stake duration too short");
+        require(duration <= MAX_STAKE_DURATION, "Stake duration too long");
         require(amount > 0, "Amount must be greater than 0");
-        require(token.balanceOf(msg.sender) >= amount, "Insufficient balance");
 
         SafeERC20.safeTransferFrom(token, msg.sender, address(this), amount);
         stakeInfos[msg.sender].push(
@@ -74,23 +83,23 @@ contract Staking is ReentrancyGuard, Ownable {
         );
     }
 
-    function unstake(uint256 stakeIndex) external nonReentrant {
+    function unstake(uint256 stakeIndex) external nonReentrant whenNotPaused {
         StakeInfo[] storage userStakes = stakeInfos[msg.sender];
         require(stakeIndex < userStakes.length, "Invalid stake index");
-        StakeInfo memory s = userStakes[stakeIndex];
+        StakeInfo storage s = userStakes[stakeIndex];
+        require(s.stakedAmount > 0, "Already unstaked");
 
         uint256 amount = s.stakedAmount;
-        userStakes[stakeIndex] = userStakes[userStakes.length - 1];
-        userStakes.pop();
+        s.stakedAmount = 0;
 
         SafeERC20.safeTransfer(token, msg.sender, amount);
-
         emit StakeUnstaked(msg.sender, stakeIndex, amount);
     }
 
     function getStakeInfo(
         address userAddress
     ) public view returns (StakeInfo[] memory) {
+        require(userAddress != address(0), "Invalid user address");
         return stakeInfos[userAddress];
     }
 }

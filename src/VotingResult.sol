@@ -9,18 +9,28 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract VotingResult is ERC721URIStorage, Ownable {
     uint256 public nextTokenId;
-    address public votingContract;
+
+    mapping(address => bool) public authorizedMinters;
+
+    event MinterAdded(address indexed minter);
+    event MinterRemoved(address indexed minter);
 
     constructor() ERC721("VotingResult", "VR") Ownable(msg.sender) {}
 
-    function setVotingContract(address _votingContract) external onlyOwner {
-        require(votingContract == address(0), "Already set");
-        votingContract = _votingContract;
+    function addMinter(address _votingContract) external onlyOwner {
+        require(_votingContract != address(0), "Invalid address");
+        authorizedMinters[_votingContract] = true;
+        emit MinterAdded(_votingContract);
+    }
+
+    function removeMinter(address _votingContract) external onlyOwner {
+        authorizedMinters[_votingContract] = false;
+        emit MinterRemoved(_votingContract);
     }
 
     function mintVotingResult(address to, string memory description) external {
         require(
-            msg.sender == owner() || msg.sender == votingContract,
+            msg.sender == owner() || authorizedMinters[msg.sender],
             "Not authorized to mint"
         );
         uint256 tokenId = nextTokenId;

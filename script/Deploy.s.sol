@@ -56,8 +56,7 @@ contract Deploy is Script {
         );
         console.log("Voting deployed at:", address(voting));
 
-        staking.setVoting(address(voting));
-        votingResult.setVotingContract(address(voting));
+        votingResult.addMinter(address(voting));
 
         vm.stopBroadcast();
     }
