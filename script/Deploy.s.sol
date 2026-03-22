@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
 import {VVToken} from "../src/VVToken.sol";
 import {Staking} from "../src/Staking.sol";
 import {Voting} from "../src/Voting.sol";
@@ -12,51 +11,31 @@ contract Deploy is Script {
     uint256 public constant DEFAULT_INITIAL_SUPPLY = 1_000_000 * 10 ** 18;
 
     function run() public {
-        uint256 initialSupply = vm.envOr(
-            "INITIAL_SUPPLY",
-            DEFAULT_INITIAL_SUPPLY
-        );
+        uint256 initialSupply = vm.envOr("INITIAL_SUPPLY", DEFAULT_INITIAL_SUPPLY);
+
+        address deployer = tx.origin;
+        address admin    = vm.envOr("VOTING_ADMIN", deployer);
 
         vm.startBroadcast();
 
         VVToken vvToken = new VVToken(initialSupply);
-        console.log("VVToken deployed at:", address(vvToken));
-
         Staking staking = new Staking(address(vvToken));
-        console.log("Staking deployed at:", address(staking));
-
         VotingResult votingResult = new VotingResult();
-        console.log("VotingResult deployed at:", address(votingResult));
-
-        uint256 deadline = block.timestamp + 7 days;
-        uint256 threshold = vm.envOr(
-            "VOTING_POWER_THRESHOLD",
-            uint256(1_000_000 * 10 ** 18)
-        );
-        string memory description = vm.envOr(
-            "VOTING_DESCRIPTION",
-            string("Initial governance proposal")
-        );
-
-        Voting.VotingInfo memory votingInfo = Voting.VotingInfo({
-            id: keccak256(abi.encodePacked(block.timestamp, "initial")),
-            deadline: deadline,
-            votingPowerThreshold: threshold,
-            description: description,
-            yesVotes: 0,
-            noVotes: 0,
-            isOver: false
-        });
 
         Voting voting = new Voting(
             address(staking),
-            votingInfo,
             address(votingResult),
-            tx.origin
+            deployer,
+            admin
         );
-        console.log("Voting deployed at:", address(voting));
 
         votingResult.addMinter(address(voting));
+
+        uint256 deadline  = block.timestamp + vm.envOr("VOTING_DEADLINE_OFFSET", uint256(7 days));
+        uint256 threshold = vm.envOr("VOTING_POWER_THRESHOLD", uint256(1_000_000 * 10 ** 18));
+        string memory description = vm.envOr("VOTING_DESCRIPTION", string("Initial governance proposal"));
+
+        voting.createVote(deadline, threshold, description);
 
         vm.stopBroadcast();
     }

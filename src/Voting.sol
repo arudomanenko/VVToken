@@ -26,50 +26,93 @@ contract Voting is ReentrancyGuard, Ownable, Pausable {
         bool vote;
     }
 
-    event Voted(address indexed voter, bool vote, uint256 votingPower);
-    event VotingFinalized(string result, uint256 yesVotes, uint256 noVotes);
+    event AdminSet(address indexed previousAdmin, address indexed newAdmin);
+    event VoteCreated(bytes32 indexed voteId, uint256 deadline, uint256 votingPowerThreshold, string description);
+    event Voted(bytes32 indexed voteId, address indexed voter, bool vote, uint256 votingPower);
+    event VotingFinalized(bytes32 indexed voteId, string result, uint256 yesVotes, uint256 noVotes);
 
     Staking public staking;
-    VotingInfo public votingInfo;
-
-    mapping(address => bool) public usersVoted;
-    mapping(address => bool) public usersVote;
-
     VotingResult public votingResult;
+
+    address public admin;
+
+    mapping(bytes32 => VotingInfo) public votes;
+    bytes32[] public voteIds;
+
+    mapping(bytes32 => mapping(address => bool)) public usersVoted;
+    mapping(bytes32 => mapping(address => bool)) public usersVote;
+
+    modifier onlyAdmin() {
+        _onlyAdmin();
+        _;
+    }
+
+    function _onlyAdmin() internal view {
+        require(msg.sender == admin, "Caller is not the admin");
+    }
 
     constructor(
         address _stakingAddress,
-        VotingInfo memory _votingInfo,
         address _votingResultAddress,
-        address _creator
+        address _creator,
+        address _admin
     ) Ownable(_creator) {
         staking = Staking(_stakingAddress);
-        votingInfo = _votingInfo;
         votingResult = VotingResult(_votingResultAddress);
+        _setAdmin(_admin);
+    }
+    function setAdmin(address newAdmin) external onlyOwner {
+        _setAdmin(newAdmin);
     }
 
-    function vote(bool userVote) public nonReentrant whenNotPaused {
-        require(!votingInfo.isOver, "Voting is over");
-        require(
-            block.timestamp < votingInfo.deadline,
-            "Voting deadline passed"
-        );
-        require(!usersVoted[msg.sender], "Already voted");
+    function createVote(
+        uint256 deadline,
+        uint256 votingPowerThreshold,
+        string calldata description
+    ) external onlyAdmin returns (bytes32 voteId) {
+        require(deadline > block.timestamp, "Deadline must be in the future");
+        require(votingPowerThreshold > 0, "Threshold must be positive");
+
+        voteId = keccak256(abi.encodePacked(block.timestamp, block.prevrandao, description));
+        require(votes[voteId].deadline == 0, "Vote ID collision");
+
+        votes[voteId] = VotingInfo({
+            id: voteId,
+            deadline: deadline,
+            votingPowerThreshold: votingPowerThreshold,
+            description: description,
+            yesVotes: 0,
+            noVotes: 0,
+            isOver: false
+        });
+        voteIds.push(voteId);
+
+        emit VoteCreated(voteId, deadline, votingPowerThreshold, description);
+    }
+
+    function vote(bytes32 voteId, bool userVote) public nonReentrant whenNotPaused {
+        VotingInfo storage vi = votes[voteId];
+        require(vi.deadline != 0, "Vote does not exist");
+        require(!vi.isOver, "Voting is over");
+        require(block.timestamp < vi.deadline, "Voting deadline passed");
+        require(!usersVoted[voteId][msg.sender], "Already voted");
 
         uint256 vp = _getVotingPower(msg.sender);
         require(vp > 0, "No active voting power");
 
-        usersVoted[msg.sender] = true;
-        usersVote[msg.sender] = userVote;
-        _applyNcheckVote(userVote, vp);
+        usersVoted[voteId][msg.sender] = true;
+        usersVote[voteId][msg.sender] = userVote;
+        _applyNcheckVote(voteId, userVote, vp);
 
-        emit Voted(msg.sender, userVote, vp);
+        emit Voted(voteId, msg.sender, userVote, vp);
     }
 
-    function finalize() public nonReentrant onlyOwner {
-        require(!votingInfo.isOver, "Voting already finalized");
-        require(block.timestamp >= votingInfo.deadline, "Deadline not reached");
-        _endVoting(votingInfo.yesVotes > votingInfo.noVotes ? "Yes" : "No");
+    function finalize(bytes32 voteId) public nonReentrant onlyAdmin {
+        VotingInfo storage vi = votes[voteId];
+        require(vi.deadline != 0, "Vote does not exist");
+        require(!vi.isOver, "Voting already finalized");
+        require(block.timestamp >= vi.deadline, "Deadline not reached");
+        _endVoting(voteId, vi.yesVotes > vi.noVotes ? "Yes" : "No");
     }
 
     function pause() external onlyOwner {
@@ -80,34 +123,52 @@ contract Voting is ReentrancyGuard, Ownable, Pausable {
         _unpause();
     }
 
-    function getCurrentVoteInfo() public view returns (VotingInfo memory) {
-        return votingInfo;
+
+    function getVoteInfo(bytes32 voteId) public view returns (VotingInfo memory) {
+        return votes[voteId];
+    }
+
+    function getAllVoteIds() public view returns (bytes32[] memory) {
+        return voteIds;
     }
 
     function getVoterInfo(
+        bytes32 voteId,
         address voter
     ) public view returns (VoterInfo memory) {
-        return VoterInfo({hasVoted: usersVoted[voter], vote: usersVote[voter]});
+        return VoterInfo({
+            hasVoted: usersVoted[voteId][voter],
+            vote: usersVote[voteId][voter]
+        });
     }
 
-    function _applyNcheckVote(bool isYesVote, uint256 vp) internal {
+
+    function _setAdmin(address newAdmin) internal {
+        require(newAdmin != address(0), "Admin cannot be zero address");
+        emit AdminSet(admin, newAdmin);
+        admin = newAdmin;
+    }
+
+    function _applyNcheckVote(bytes32 voteId, bool isYesVote, uint256 vp) internal {
+        VotingInfo storage vi = votes[voteId];
         if (isYesVote) {
-            votingInfo.yesVotes += vp;
-            if (votingInfo.yesVotes >= votingInfo.votingPowerThreshold) {
-                _endVoting("Yes");
+            vi.yesVotes += vp;
+            if (vi.yesVotes >= vi.votingPowerThreshold) {
+                _endVoting(voteId, "Yes");
             }
         } else {
-            votingInfo.noVotes += vp;
-            if (votingInfo.noVotes >= votingInfo.votingPowerThreshold) {
-                _endVoting("No");
+            vi.noVotes += vp;
+            if (vi.noVotes >= vi.votingPowerThreshold) {
+                _endVoting(voteId, "No");
             }
         }
     }
 
-    function _endVoting(string memory result) internal {
-        votingInfo.isOver = true;
+    function _endVoting(bytes32 voteId, string memory result) internal {
+        VotingInfo storage vi = votes[voteId];
+        vi.isOver = true;
         votingResult.mintVotingResult(owner(), result);
-        emit VotingFinalized(result, votingInfo.yesVotes, votingInfo.noVotes);
+        emit VotingFinalized(voteId, result, vi.yesVotes, vi.noVotes);
     }
 
     function _getVotingPower(address user) internal view returns (uint256) {
