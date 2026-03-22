@@ -85,4 +85,8 @@ cast send 0x13EfAa9f13730C29Bb61bC349aaDa7aF69a5EB53 "finalize(bytes32)" "$VOTE_
 
 `Voting` and `Staking` each implement `Pausable`; staking and voting transactions revert while paused. Pausing is restricted to the respective **owner** of each contract (not the voting admin).
 
+### Local scenario scripts (`test_scenations`, Anvil)
+
+Run `anvil` in one terminal (default RPC `http://127.0.0.1:8545`). From the repo root, install watcher deps once with `npm install --prefix test_scenations`, then run a script such as `bash test_scenations/test_scenario_average.sh` (see also `test_scenario_short_locks_vs_long_locks.sh` and `test_scenario_stake_expires_before_vote.sh`). Override `RPC_URL` if your node is not on the default host or port.
+
 ---
