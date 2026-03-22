@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
 import {VVToken} from "../src/VVToken.sol";
 import {Staking} from "../src/Staking.sol";
 import {Voting} from "../src/Voting.sol";
@@ -36,6 +37,11 @@ contract Deploy is Script {
         string memory description = vm.envOr("VOTING_DESCRIPTION", string("Initial governance proposal"));
 
         voting.createVote(deadline, threshold, description);
+
+        console.log("VVToken", address(vvToken));
+        console.log("Staking", address(staking));
+        console.log("VotingResult", address(votingResult));
+        console.log("Voting", address(voting));
 
         vm.stopBroadcast();
     }
